@@ -36,6 +36,7 @@ extern crate backtrace;
 #[cfg(debug_assertions)]
 use std::cell::RefCell as StdRefCell;
 use std::cell::{Cell, UnsafeCell};
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
@@ -122,8 +123,9 @@ impl<T: ?Sized> RefCell<T> {
     pub fn borrow_mut<'a>(&'a self) -> RefMut<'a, T> {
         match BorrowRefMut::new(&self.borrow) {
             Some(b) => RefMut {
-                _value: unsafe { &mut *self.value.get() },
+                _value: unsafe { NonNull::new_unchecked(self.value.get()) },
                 _borrow: b,
+                _marker: PhantomData,
             },
             None => self.panic("borrowed"),
         }
@@ -309,20 +311,36 @@ impl<'b> Drop for BorrowRefMut<'b> {
 pub struct RefMut<'b, T: ?Sized + 'b> {
     // FIXME #12808: strange name to try to avoid interfering with
     // field accesses of the contained type via Deref
-    _value: &'b mut T,
+    _value: NonNull<T>,
     _borrow: BorrowRefMut<'b>,
+    _marker: PhantomData<&'b mut T>,
+}
+
+impl<'b, T: ?Sized> RefMut<'b, T> {
+    /// TODO
+    pub fn map<U: ?Sized, F>(mut orig: RefMut<'b, T>, f: F) -> RefMut<'b, U>
+    where
+        F: FnOnce(&mut T) -> &mut U,
+    {
+        let value = NonNull::from(f(&mut *orig));
+        RefMut {
+            _value: value,
+            _borrow: orig._borrow,
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<'b, T: ?Sized> Deref for RefMut<'b, T> {
     type Target = T;
     fn deref(&self) -> &T {
-        self._value
+        unsafe { self._value.as_ref() }
     }
 }
 
 impl<'b, T: ?Sized> DerefMut for RefMut<'b, T> {
     fn deref_mut(&mut self) -> &mut T {
-        self._value
+        unsafe { self._value.as_mut() }
     }
 }
 
