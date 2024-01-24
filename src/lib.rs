@@ -279,6 +279,20 @@ impl<'b, T: ?Sized> Ref<'b, T> {
             _borrow: orig._borrow,
         }
     }
+
+    /// TODO
+    pub fn filter_map<U: ?Sized, F>(orig: Ref<'b, T>, f: F) -> Result<Ref<'b, U>, Self>
+    where
+        F: FnOnce(&T) -> Option<&U>,
+    {
+        match f(&*orig) {
+            Some(value) => Ok(Ref {
+                _value: NonNull::from(value),
+                _borrow: orig._borrow,
+            }),
+            None => Err(orig),
+        }
+    }
 }
 
 struct BorrowRefMut<'b> {
