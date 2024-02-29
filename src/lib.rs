@@ -30,10 +30,8 @@
 
 #![deny(missing_docs)]
 
-#[cfg(debug_assertions)]
 extern crate backtrace;
 
-#[cfg(debug_assertions)]
 use std::cell::RefCell as StdRefCell;
 use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomData;
@@ -47,10 +45,6 @@ pub struct RefCell<T: ?Sized> {
     value: UnsafeCell<T>,
 }
 
-#[cfg(not(debug_assertions))]
-type Location = ();
-
-#[cfg(debug_assertions)]
 type Location = &'static panic::Location<'static>;
 
 /// An enumeration of values returned from the `state` method on a `RefCell<T>`.
@@ -69,7 +63,6 @@ pub enum BorrowState {
 struct BorrowFlag {
     flag: Cell<usize>,
 
-    #[cfg(debug_assertions)]
     locations: StdRefCell<Vec<Location>>,
 }
 
@@ -101,8 +94,8 @@ impl<T: ?Sized> RefCell<T> {
     /// # Panics
     ///
     /// Panics if the value is currently mutably borrowed.
-    #[cfg_attr(debug_assertions, inline(never))]
-    #[cfg_attr(debug_assertions, track_caller)]
+    #[inline(never)]
+    #[track_caller]
     pub fn borrow<'a>(&'a self) -> Ref<'a, T> {
         match BorrowRef::new(&self.borrow) {
             Some(b) => Ref {
@@ -121,8 +114,8 @@ impl<T: ?Sized> RefCell<T> {
     /// # Panics
     ///
     /// Panics if the value is currently borrowed.
-    #[cfg_attr(debug_assertions, inline(never))]
-    #[cfg_attr(debug_assertions, track_caller)]
+    #[inline(never)]
+    #[track_caller]
     pub fn borrow_mut<'a>(&'a self) -> RefMut<'a, T> {
         match BorrowRefMut::new(&self.borrow) {
             Some(b) => RefMut {
@@ -134,12 +127,6 @@ impl<T: ?Sized> RefCell<T> {
         }
     }
 
-    #[cfg(not(debug_assertions))]
-    fn panic(&self, msg: &str) -> ! {
-        panic!("RefCell<T> already {}", msg)
-    }
-
-    #[cfg(debug_assertions)]
     #[allow(unused_must_use)]
     fn panic(&self, msg: &str) -> ! {
         let mut msg = format!("RefCell<T> already {}", msg);
@@ -155,23 +142,6 @@ impl<T: ?Sized> RefCell<T> {
     }
 }
 
-#[cfg(not(debug_assertions))]
-impl BorrowFlag {
-    #[inline]
-    fn new() -> BorrowFlag {
-        BorrowFlag {
-            flag: Cell::new(UNUSED),
-        }
-    }
-
-    #[inline]
-    fn push(&self, _caller: Location) {}
-
-    #[inline]
-    fn pop(&self) {}
-}
-
-#[cfg(debug_assertions)]
 impl BorrowFlag {
     fn new() -> BorrowFlag {
         BorrowFlag {
@@ -189,13 +159,8 @@ impl BorrowFlag {
     }
 }
 
-#[cfg(not(debug_assertions))]
-#[inline]
-fn get_caller() -> Location {}
-
 #[inline(never)]
 #[track_caller]
-#[cfg(debug_assertions)]
 fn get_caller() -> Location {
     panic::Location::caller()
 }
@@ -230,9 +195,8 @@ struct BorrowRef<'b> {
 }
 
 impl<'b> BorrowRef<'b> {
-    #[cfg_attr(debug_assertions, inline(never))]
-    #[cfg_attr(debug_assertions, track_caller)]
-    #[cfg_attr(not(debug_assertions), inline)]
+    #[inline(never)]
+    #[track_caller]
     fn new(borrow: &'b BorrowFlag) -> Option<BorrowRef<'b>> {
         let flag = borrow.flag.get();
         if flag == WRITING {
@@ -305,9 +269,8 @@ struct BorrowRefMut<'b> {
 }
 
 impl<'b> BorrowRefMut<'b> {
-    #[cfg_attr(debug_assertions, inline(never))]
-    #[cfg_attr(debug_assertions, track_caller)]
-    #[cfg_attr(not(debug_assertions), inline)]
+    #[inline(never)]
+    #[track_caller]
     fn new(borrow: &'b BorrowFlag) -> Option<BorrowRefMut<'b>> {
         if borrow.flag.get() != UNUSED {
             return None;
