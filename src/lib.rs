@@ -38,6 +38,7 @@ use std::cell::RefCell as StdRefCell;
 use std::cell::{Cell, UnsafeCell};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
+use std::panic;
 use std::ptr::NonNull;
 
 /// A clone of the standard library's `RefCell` type.
@@ -50,7 +51,7 @@ pub struct RefCell<T: ?Sized> {
 type Location = ();
 
 #[cfg(debug_assertions)]
-type Location = backtrace::Backtrace;
+type Location = &'static panic::Location<'static>;
 
 /// An enumeration of values returned from the `state` method on a `RefCell<T>`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -191,9 +192,10 @@ impl BorrowFlag {
 fn get_caller() -> Location {}
 
 #[inline(never)]
+#[track_caller]
 #[cfg(debug_assertions)]
 fn get_caller() -> Location {
-    backtrace::Backtrace::new()
+    panic::Location::caller()
 }
 
 unsafe impl<T: ?Sized> Send for RefCell<T> where T: Send {}
